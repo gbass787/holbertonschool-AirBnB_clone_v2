@@ -2,6 +2,7 @@
 """ Console Module """
 import cmd
 import sys
+from os import getenv
 from models.base_model import BaseModel
 from models.__init__ import storage
 from models.user import User
@@ -19,16 +20,16 @@ class HBNBCommand(cmd.Cmd):
     prompt = '(hbnb) ' if sys.__stdin__.isatty() else ''
 
     classes = {
-        'BaseModel': BaseModel(), 'User': User(), 'Place': Place(),
-        'State': State(), 'City': City(), 'Amenity': Amenity(),
-        'Review': Review()
-    }
+               'BaseModel': BaseModel, 'User': User, 'Place': Place,
+               'State': State, 'City': City, 'Amenity': Amenity,
+               'Review': Review
+              }
     dot_cmds = ['all', 'count', 'show', 'destroy', 'update']
     types = {
-        'number_rooms': int, 'number_bathrooms': int,
-        'max_guest': int, 'price_by_night': int,
-        'latitude': float, 'longitude': float
-    }
+             'number_rooms': int, 'number_bathrooms': int,
+             'max_guest': int, 'price_by_night': int,
+             'latitude': float, 'longitude': float
+            }
 
     def preloop(self):
         """Prints if isatty is false"""
@@ -72,7 +73,7 @@ class HBNBCommand(cmd.Cmd):
                 pline = pline[2].strip()  # pline is now str
                 if pline:
                     # check for *args or **kwargs
-                    if pline[0] is '{' and pline[-1] is '}'\
+                    if pline[0] is '{' and pline[-1] is'}'\
                             and type(eval(pline)) is dict:
                         _args = pline
                     else:
@@ -113,31 +114,55 @@ class HBNBCommand(cmd.Cmd):
         pass
 
     def do_create(self, args):
-        """ Create an object of any class,
-        cmd_arg = 	Splits the string at the specified separator, and returns a list
+        """ Create an object of any class.
+            Command syntax: <class name> (creates instance)
+            Command syntax: <class name> <param 1> <param 2> <param 3>
+                param syntax: <attr name>="<value>"
+                all underscores must be replaced with spaces in command line:
+                Example:name="My_little_house" sets
+                Example: create State name="California"
         """
-        cmd_arg = args.split(" ")
-        if not cmd_arg:
+        if args:
+            cmd_args = args.split(' ')
+            clss = cmd_args[0]
+            if clss in HBNBCommand.classes:
+                if len(cmd_args) == 1:
+                    obj = HBNBCommand.classes[clss]()
+                    obj.save()
+                    print(obj.id)
+                else:
+                    cmd_args.pop(0)
+                    obj = HBNBCommand.classes[clss]()
+                    print(obj.id)
+
+                    for attrs in cmd_args:
+                        attrs = attrs.split('=')
+
+                        attr_name = attrs[0]
+
+                        if '\"' in attrs[1]:
+                            attr_value = (attrs[1])[1:-1]
+                            if '_' in attr_value:
+                                attr_value = attr_value.replace('_', ' ')
+                        else:
+                            attr_value = attrs[1]
+                            attr_value = eval(attr_value)
+
+                        if attr_name == 'state_id':
+                            obj.state_id = attr_value
+                            s = cmd_args[1]
+                            obj.name = s.split('=')[1][1:-1].replace('_', '')
+                            obj.save()
+                            return
+
+                        setattr(obj, attr_name, attr_value)
+                        obj.save()
+            else:
+                print("** class doesn't exist **")
+                return
+        else:
             print("** class name missing **")
             return
-        if cmd_arg[0] not in HBNBCommand.classes:
-            print("** class doesn't exist **")
-            return
-        parts_strings = eval("{}()".format(cmd_arg[0]))
-        for elements in cmd_arg[1:]:
-            """starts at first argument with the command name"""
-            val = elements.split('=')
-            """splits argument as key and value"""
-            val = val[1:-1].replace('_', ' ')
-            setattr(parts_strings, val[0], eval(val[1]))
-
-        new_instance = HBNBCommand.classes[args]
-        new_instance.save()
-        storage.save()
-        parts_strings.save()
-        print("{}".format(parts_strings.id))
-        print(new_instance.id)
-        storage.save()
 
     def help_create(self):
         """ Help information for the create method """
@@ -200,7 +225,7 @@ class HBNBCommand(cmd.Cmd):
         key = c_name + "." + c_id
 
         try:
-            del (storage.all()[key])
+            del(storage.all()[key])
             storage.save()
         except KeyError:
             print("** no instance found **")
@@ -212,18 +237,18 @@ class HBNBCommand(cmd.Cmd):
 
     def do_all(self, args):
         """ Shows all objects, or all objects of a class"""
-        print_list = []
 
+        print_list = []
         if args:
             args = args.split(' ')[0]  # remove possible trailing args
             if args not in HBNBCommand.classes:
                 print("** class doesn't exist **")
                 return
-            for k, v in storage._FileStorage__objects.items():
+            for k, v in storage.all().items():
                 if k.split('.')[0] == args:
                     print_list.append(str(v))
         else:
-            for k, v in storage._FileStorage__objects.items():
+            for k, v in storage.all().items():
                 print_list.append(str(v))
 
         print(print_list)
@@ -302,6 +327,9 @@ class HBNBCommand(cmd.Cmd):
             # if att_val was not quoted arg
             if not att_val and args[2]:
                 att_val = args[2].partition(' ')[0]
+
+            if '_' in att_val:
+                att_val = att_val.replace('_', ' ')
 
             args = [att_name, att_val]
 
